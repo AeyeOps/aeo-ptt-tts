@@ -290,9 +290,9 @@ def setup_logging(verbose: bool = False) -> None:
         verbose: If True, use DEBUG level. All logs go to file only.
 
     Log locations:
-        - Interactive: ~/.local/state/stt-service/server.log
+        - Interactive: ~/.local/state/aeo-ptt/server.log
         - Override: STT_LOG_DIR environment variable
-        - systemd: use journalctl -u stt-service
+        - systemd: use journalctl -u aeo-ptt
 
     Log rotation:
         - Max size: 5MB per file
@@ -308,7 +308,7 @@ def setup_logging(verbose: bool = False) -> None:
 
     # XDG state directory
     xdg_state = os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state"))
-    log_dir = Path(os.environ.get("STT_LOG_DIR", f"{xdg_state}/stt-service"))
+    log_dir = Path(os.environ.get("STT_LOG_DIR", f"{xdg_state}/aeo-ptt"))
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / "server.log"
 
@@ -349,7 +349,7 @@ def stop_logging() -> None:
 
 
 def main() -> None:
-    """Main entry point for stt-server command."""
+    """Main entry point for aeo-ptt-server command."""
     parser = argparse.ArgumentParser(description="STT WebSocket Server")
     parser.add_argument(
         "--host",

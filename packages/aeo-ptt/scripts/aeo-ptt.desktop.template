@@ -2,7 +2,7 @@
 Type=Application
 Name=AEO Push-to-Talk
 Comment=Global Ctrl+Super hotkey for speech-to-text
-Exec={{INSTALL_DIR}}/scripts/stt-client.sh --ptt --output type --daemon --tray
+Exec={{INSTALL_DIR}}/scripts/aeo-ptt-client.sh --ptt --output type --daemon --tray
 Icon=audio-input-microphone
 Terminal=false
 Categories=Utility;AudioVideo;

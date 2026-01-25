@@ -16,14 +16,14 @@ Environment="PATH={{HOME}}/.local/bin:/usr/local/bin:/usr/bin:/bin"
 Environment="STT_SERVER_HOST=127.0.0.1"
 Environment="STT_SERVER_PORT=9876"
 
-ExecStart={{UV_PATH}} run stt-server
+ExecStart={{UV_PATH}} run aeo-ptt-server
 Restart=on-failure
 RestartSec=5
 
 # Logging
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=stt-service
+SyslogIdentifier=aeo-ptt
 
 [Install]
 WantedBy=multi-user.target

@@ -5,7 +5,7 @@ GPU-accelerated Speech-to-Text using NVIDIA Parakeet ONNX models with WebSocket 
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AeyeOps/ai-essentials/main/packages/stt-service/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/AeyeOps/aeo-ptt-tts/main/packages/aeo-ptt/install.sh | bash
 ```
 
 The installer handles dependencies, GPU setup, and model download. Answer **yes** to all prompts for the full experience:
@@ -21,9 +21,9 @@ Log out and back in after install. Press **Ctrl+Super** in any app to dictate.
 If you skipped auto-start, run manually:
 
 ```bash
-cd ~/stt-service
-./scripts/stt-server.sh        # Terminal 1: Start server
-./scripts/stt-client.sh --ptt  # Terminal 2: PTT mode
+cd ~/aeo-ptt
+./scripts/aeo-ptt-server.sh        # Terminal 1: Start server
+./scripts/aeo-ptt-client.sh --ptt  # Terminal 2: PTT mode
 ```
 
 Output shows timing and transcription:
@@ -100,9 +100,9 @@ All settings via environment variables:
 ## Output Modes
 
 ```bash
-./scripts/stt-client.sh --ptt                  # Print to stdout
-./scripts/stt-client.sh --ptt --output type    # Type into focused window (xdotool)
-./scripts/stt-client.sh --ptt --output clipboard  # Copy to clipboard
+./scripts/aeo-ptt-client.sh --ptt                  # Print to stdout
+./scripts/aeo-ptt-client.sh --ptt --output type    # Type into focused window (xdotool)
+./scripts/aeo-ptt-client.sh --ptt --output clipboard  # Copy to clipboard
 ```
 
 ## System Tray (Auto-Start Mode)
@@ -122,13 +122,13 @@ Right-click the tray icon to quit.
 ## Running as a Service
 
 ```bash
-cd ~/stt-service && ./scripts/install-systemd.sh
+cd ~/aeo-ptt && ./scripts/install-systemd.sh
 ```
 
 ## Uninstall
 
 ```bash
-cd ~/stt-service && ./install.sh --uninstall
+cd ~/aeo-ptt && ./install.sh --uninstall
 ```
 
 ---
@@ -170,8 +170,8 @@ cd ~/stt-service && ./install.sh --uninstall
 ### Git Clone
 
 ```bash
-git clone https://github.com/AeyeOps/ai-essentials.git
-cd ai-essentials/packages/stt-service
+git clone https://github.com/AeyeOps/aeo-ptt-tts.git
+cd aeo-ptt-tts/packages/aeo-ptt
 ./install.sh
 ```
 
@@ -186,7 +186,7 @@ cd ai-essentials/packages/stt-service
 ### Python API
 
 ```python
-from stt_service import Transcriber
+from aeo_ptt import Transcriber
 
 transcriber = Transcriber()
 transcriber.load()

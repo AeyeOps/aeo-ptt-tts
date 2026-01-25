@@ -313,9 +313,9 @@ def setup_logging(verbose: bool = False) -> None:
         verbose: Reserved for future use. Currently all logs go to file only.
 
     Log locations:
-        - Interactive: ~/.local/state/stt-service/client.log
+        - Interactive: ~/.local/state/aeo-ptt/client.log
         - Override: STT_LOG_DIR environment variable
-        - systemd: use journalctl -u stt-client
+        - systemd: use journalctl -u aeo-ptt-client
 
     Log rotation:
         - Max size: 5MB per file
@@ -326,7 +326,7 @@ def setup_logging(verbose: bool = False) -> None:
 
     # XDG state directory (standard for logs/state in user space)
     xdg_state = os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state"))
-    log_dir = Path(os.environ.get("STT_LOG_DIR", f"{xdg_state}/stt-service"))
+    log_dir = Path(os.environ.get("STT_LOG_DIR", f"{xdg_state}/aeo-ptt"))
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / "client.log"
 
@@ -355,7 +355,7 @@ def _takeover_from_old_instances() -> None:
     - Multiple gtk-launch invocations don't accumulate duplicates
     """
     result = subprocess.run(
-        ["pgrep", "-f", "stt-client.*--daemon"],
+        ["pgrep", "-f", "aeo-ptt-client.*--daemon"],
         capture_output=True,
     )
 
@@ -820,7 +820,7 @@ async def run_ptt_mode(args: argparse.Namespace) -> int:
 
 
 def main() -> None:
-    """Main entry point for stt-client command."""
+    """Main entry point for aeo-ptt-client command."""
     parser = argparse.ArgumentParser(description="AEO Push-to-Talk Client")
     parser.add_argument(
         "--server",

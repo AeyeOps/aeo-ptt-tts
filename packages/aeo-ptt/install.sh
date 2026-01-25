@@ -3,14 +3,14 @@
 # AEO Push-to-Talk Installer
 #
 # One-liner install:
-#   curl -fsSL https://raw.githubusercontent.com/AeyeOps/ai-essentials/main/packages/stt-service/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/AeyeOps/aeo-ptt-tts/main/packages/aeo-ptt/install.sh | bash
 #
 # Or with wget:
-#   wget -O- https://raw.githubusercontent.com/AeyeOps/ai-essentials/main/packages/stt-service/install.sh | bash
+#   wget -O- https://raw.githubusercontent.com/AeyeOps/aeo-ptt-tts/main/packages/aeo-ptt/install.sh | bash
 #
 # Options (via environment variables):
 #   STT_NONINTERACTIVE=1  - No prompts, use defaults
-#   STT_INSTALL_DIR=path  - Custom install location (default: ~/stt-service)
+#   STT_INSTALL_DIR=path  - Custom install location (default: ~/aeo-ptt)
 #   STT_SKIP_MODEL=1      - Don't download the speech model
 #   STT_WITH_SERVICE=1    - Install systemd service
 #
@@ -20,14 +20,14 @@ set -euo pipefail
 # Configuration
 # ═══════════════════════════════════════════════════════════════════
 
-INSTALL_DIR="${STT_INSTALL_DIR:-$HOME/stt-service}"
+INSTALL_DIR="${STT_INSTALL_DIR:-$HOME/aeo-ptt}"
 NONINTERACTIVE="${STT_NONINTERACTIVE:-0}"
 SKIP_MODEL="${STT_SKIP_MODEL:-0}"
 WITH_SERVICE="${STT_WITH_SERVICE:-0}"
 
 # GitHub download URL (tarball, no git required)
-REPO_TARBALL="https://github.com/AeyeOps/ai-essentials/archive/refs/heads/main.tar.gz"
-PACKAGE_SUBDIR="ai-essentials-main/packages/stt-service"
+REPO_TARBALL="https://github.com/AeyeOps/aeo-ptt-tts/archive/refs/heads/main.tar.gz"
+PACKAGE_SUBDIR="aeo-ptt-tts-main/packages/aeo-ptt"
 
 # ARM64 onnxruntime wheel (not on PyPI)
 ONNX_WHEEL="https://github.com/ultralytics/assets/releases/download/v0.0.0/onnxruntime_gpu-1.24.0-cp312-cp312-linux_aarch64.whl"
@@ -246,7 +246,7 @@ model_cached() {
 
 # Check if systemd service exists
 service_exists() {
-    [[ -f /etc/systemd/system/stt-service.service ]]
+    [[ -f /etc/systemd/system/aeo-ptt.service ]]
 }
 
 # ═══════════════════════════════════════════════════════════════════
@@ -659,7 +659,7 @@ download_package() {
 
             download_extract "$REPO_TARBALL" "$tmp_dir"
 
-            # Move just the stt-service package
+            # Move just the aeo-ptt package
             mv "$tmp_dir/$PACKAGE_SUBDIR" "$INSTALL_DIR"
             rm -rf "$tmp_dir"
 
@@ -848,7 +848,7 @@ download_model() {
         fi
 
         if uv run python -c "
-from stt_service.transcriber import Transcriber
+from aeo_ptt.transcriber import Transcriber
 t = Transcriber()
 t.load()
 print('Model loaded successfully')
@@ -877,8 +877,8 @@ setup_service() {
 
     if ! has_cmd systemctl; then
         info "Systemd not available, skipping service setup"
-        info "Run server: $INSTALL_DIR/scripts/stt-server.sh"
-        info "Run client: $INSTALL_DIR/scripts/stt-client.sh"
+        info "Run server: $INSTALL_DIR/scripts/aeo-ptt-server.sh"
+        info "Run client: $INSTALL_DIR/scripts/aeo-ptt-client.sh"
         return
     fi
 
@@ -907,7 +907,7 @@ setup_service() {
     CUDA_LIB=$(find_cuda_lib)
 
     # Generate service file
-    cat > /tmp/stt-service.service << EOF
+    cat > /tmp/aeo-ptt.service << EOF
 [Unit]
 Description=AEO Push-to-Talk - GPU-accelerated speech-to-text
 After=network.target
@@ -918,38 +918,38 @@ User=$(whoami)
 WorkingDirectory=$INSTALL_DIR
 Environment="LD_LIBRARY_PATH=${CUDA_LIB:-/usr/lib/aarch64-linux-gnu}"
 Environment="PATH=$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=$HOME/.local/bin/uv run stt-server
+ExecStart=$HOME/.local/bin/uv run aeo-ptt-server
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=stt-service
+SyslogIdentifier=aeo-ptt
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-    sudo cp /tmp/stt-service.service /etc/systemd/system/
+    sudo cp /tmp/aeo-ptt.service /etc/systemd/system/
     sudo systemctl daemon-reload
-    rm -f /tmp/stt-service.service
+    rm -f /tmp/aeo-ptt.service
 
     success "Service installed"
 
     if [[ $(ask "Enable and start service now?" "n") == "y" ]]; then
         # Stop any existing server processes before starting service
-        sudo systemctl stop stt-service 2>/dev/null || true
-        pkill -f "stt-server" 2>/dev/null || true
+        sudo systemctl stop aeo-ptt 2>/dev/null || true
+        pkill -f "aeo-ptt-server" 2>/dev/null || true
         sleep 1
-        sudo systemctl enable --now stt-service
+        sudo systemctl enable --now aeo-ptt
         sleep 2
-        if systemctl is-active --quiet stt-service; then
+        if systemctl is-active --quiet aeo-ptt; then
             success "Service running"
         else
             warn "Service may have failed to start"
-            info "Check: sudo systemctl status stt-service"
+            info "Check: sudo systemctl status aeo-ptt"
         fi
     else
-        info "Start later with: sudo systemctl enable --now stt-service"
+        info "Start later with: sudo systemctl enable --now aeo-ptt"
     fi
 }
 
@@ -1013,7 +1013,7 @@ show_completion() {
                "$INSTALL_DIR/scripts/install-systemd.sh" 2>/dev/null; then
                 success "Systemd service installed"
                 # Start it now
-                if sudo systemctl start stt-service 2>/dev/null; then
+                if sudo systemctl start aeo-ptt 2>/dev/null; then
                     success "Server started"
                 fi
             else
@@ -1093,7 +1093,7 @@ show_completion() {
         else
             # Already in input group - start client now via desktop entry
             # Kill any existing client processes first to avoid duplicates
-            pkill -f "stt-client.*--daemon" 2>/dev/null || true
+            pkill -f "aeo-ptt-client.*--daemon" 2>/dev/null || true
             sleep 1
             echo -e "Starting AEO Push-to-Talk..."
             if gtk-launch aeo-ptt 2>/dev/null; then
@@ -1113,7 +1113,7 @@ show_completion() {
         echo -e "${BOLD}Quick start:${NC}"
         echo ""
         echo "  # Test in single terminal (Docker) - hold SPACE to record"
-        echo -e "  ${DIM}cd $INSTALL_DIR && (./scripts/stt-server.sh &) && sleep 3 && ./scripts/stt-client.sh --ptt${NC}"
+        echo -e "  ${DIM}cd $INSTALL_DIR && (./scripts/aeo-ptt-server.sh &) && sleep 3 && ./scripts/aeo-ptt-client.sh --ptt${NC}"
         echo ""
         echo -e "  ${DIM}Hold SPACE to record, release to transcribe${NC}"
         echo ""
@@ -1122,7 +1122,7 @@ show_completion() {
         echo -e "${BOLD}Quick start:${NC}"
         echo ""
         echo "  # Server is running. Start the client:"
-        echo -e "  ${DIM}$INSTALL_DIR/scripts/stt-client.sh --ptt${NC}"
+        echo -e "  ${DIM}$INSTALL_DIR/scripts/aeo-ptt-client.sh --ptt${NC}"
         echo ""
         if [[ "$has_global_hotkey" == "1" ]]; then
             echo -e "  ${DIM}Hold Ctrl+Super to record, release to transcribe${NC}"
@@ -1135,8 +1135,8 @@ show_completion() {
         echo -e "${BOLD}Quick start:${NC}"
         echo ""
         echo "  # Start server, then client"
-        echo -e "  ${DIM}$INSTALL_DIR/scripts/stt-server.sh &${NC}"
-        echo -e "  ${DIM}$INSTALL_DIR/scripts/stt-client.sh --ptt${NC}"
+        echo -e "  ${DIM}$INSTALL_DIR/scripts/aeo-ptt-server.sh &${NC}"
+        echo -e "  ${DIM}$INSTALL_DIR/scripts/aeo-ptt-client.sh --ptt${NC}"
         echo ""
         if [[ "$has_global_hotkey" == "1" ]]; then
             echo -e "  ${DIM}Hold Ctrl+Super to record, release to transcribe${NC}"
@@ -1166,13 +1166,13 @@ OPTIONS:
 
 ENVIRONMENT VARIABLES:
     STT_NONINTERACTIVE=1    No prompts, use defaults (same as -y)
-    STT_INSTALL_DIR=path    Custom install location (default: ~/stt-service)
+    STT_INSTALL_DIR=path    Custom install location (default: ~/aeo-ptt)
     STT_SKIP_MODEL=1        Don't download the speech model
     STT_WITH_SERVICE=1      Install systemd service by default
 
 EXAMPLES:
     # Interactive install (recommended)
-    curl -fsSL https://raw.githubusercontent.com/AeyeOps/ai-essentials/main/packages/stt-service/install.sh | bash
+    curl -fsSL https://raw.githubusercontent.com/AeyeOps/aeo-ptt-tts/main/packages/aeo-ptt/install.sh | bash
 
     # Non-interactive install with all defaults
     curl -fsSL ... | STT_NONINTERACTIVE=1 bash
@@ -1200,9 +1200,9 @@ uninstall() {
     if service_exists; then
         info "Found systemd service"
         if [[ $(ask "Remove systemd service?" "y") == "y" ]]; then
-            sudo systemctl stop stt-service 2>/dev/null || true
-            sudo systemctl disable stt-service 2>/dev/null || true
-            sudo rm -f /etc/systemd/system/stt-service.service
+            sudo systemctl stop aeo-ptt 2>/dev/null || true
+            sudo systemctl disable aeo-ptt 2>/dev/null || true
+            sudo rm -f /etc/systemd/system/aeo-ptt.service
             sudo systemctl daemon-reload
             success "Systemd service removed"
             ((removed++))

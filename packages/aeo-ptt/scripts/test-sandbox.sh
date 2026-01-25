@@ -12,8 +12,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-CONTAINER_NAME="stt-test-sandbox"
-IMAGE_NAME="stt-test-ubuntu"
+CONTAINER_NAME="aeo-ptt-test-sandbox"
+IMAGE_NAME="aeo-ptt-test-ubuntu"
 
 # Colors
 GREEN='\033[0;32m'
@@ -53,12 +53,12 @@ TESTING THE CURL INSTALLER:
     ./test-sandbox.sh
 
     # Inside container, run the one-liner:
-    curl -fsSL https://raw.githubusercontent.com/AeyeOps/ai-essentials/main/packages/stt-service/install.sh | bash
+    curl -fsSL https://raw.githubusercontent.com/AeyeOps/aeo-ptt-tts/main/packages/aeo-ptt/install.sh | bash
 
     # Test the service
-    cd ~/stt-service
-    ./scripts/stt-server.sh &
-    ./scripts/stt-client.sh --ptt
+    cd ~/aeo-ptt
+    ./scripts/aeo-ptt-server.sh &
+    ./scripts/aeo-ptt-client.sh --ptt
 
     # In another terminal (optional)
     ./test-sandbox.sh --attach
@@ -129,7 +129,7 @@ run_interactive() {
     info "Starting interactive sandbox..."
     echo ""
     warn "Run inside container:"
-    echo "  curl -fsSL https://raw.githubusercontent.com/AeyeOps/ai-essentials/main/packages/stt-service/install.sh | bash"
+    echo "  curl -fsSL https://raw.githubusercontent.com/AeyeOps/aeo-ptt-tts/main/packages/aeo-ptt/install.sh | bash"
     echo ""
 
     local uid=$(id -u)
