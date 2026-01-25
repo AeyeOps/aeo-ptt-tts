@@ -1,77 +1,119 @@
 # AEO Push-to-Talk
 
-GPU-accelerated Speech-to-Text using NVIDIA Parakeet ONNX models with WebSocket streaming.
+**Dictate anywhere on your Linux desktop.** Hold Ctrl+Super, speak, release — your words appear at the cursor. GPU-accelerated, 40-200ms latency, works in any application.
 
 ## Install
+
+One command, guided setup:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AeyeOps/aeo-ptt-tts/main/packages/aeo-ptt/install.sh | bash
 ```
 
-The installer handles dependencies, GPU setup, and model download. Answer **yes** to all prompts for the full experience:
+The installer walks you through everything — dependencies, GPU setup, model download, and auto-start configuration. Just answer the prompts:
 
-- **Input group** - enables global Ctrl+Super hotkey
-- **Systemd service** - server auto-starts on boot
-- **Auto-start client** - tray icon appears at login
+```
+✓ GPU: NVIDIA GB10
+✓ CUDA libraries: Found
 
-Log out and back in after install. Press **Ctrl+Super** in any app to dictate.
+Global Hotkey Setup
+Enable Ctrl+Super hotkey for push-to-talk (works in any app)
+Add yourself to input group for global hotkey? [Y/n] y
+✓ Added youruser to input group
 
-## Quick Start (Manual)
+Auto-Start Server
+Start STT server automatically on boot
+Install systemd service for auto-start? [Y/n] y
+✓ Systemd service installed
 
-If you skipped auto-start, run manually:
+Auto-Start Client
+Start AEO Push-to-Talk automatically at login (Ctrl+Super in any app)
+Enable AEO Push-to-Talk auto-start? [Y/n] y
+✓ Desktop entries created
+
+════════════════════════════════════════════════════════════
+  ✓ Installation complete!
+════════════════════════════════════════════════════════════
+
+Configuration:
+  ✓ Global hotkey: Ctrl+Super
+  ✓ Server auto-start: enabled (systemd)
+  ✓ Client auto-start: enabled (tray icon at login)
+
+► Log out and back in to activate global hotkey.
+```
+
+After logging back in, press **Ctrl+Super** in any app to dictate. Look for the green tray icon.
+
+## Features
+
+- **Real-time transcription** — 40-200ms latency after warmup
+- **System-wide hotkey** — Ctrl+Super works in any application
+- **Auto-start** — Server on boot, client at login with tray icon
+- **Output modes** — Type at cursor, copy to clipboard, or print to stdout
+- **Audio feedback** — Click sounds when recording starts/stops
+- **GPU-accelerated** — NVIDIA Parakeet model via ONNX Runtime (CUDA/TensorRT)
+
+## Usage
+
+### System Tray
+
+The tray icon shows PTT status:
+
+| Color | State |
+|-------|-------|
+| Gray | Connecting to server |
+| Green | Ready (listening for Ctrl+Super) |
+| Red | Recording |
+
+Right-click to quit. GNOME users may need the [AppIndicator extension](https://extensions.gnome.org/extension/615/appindicator-support/).
+
+### Output Modes
+
+By default, text types directly into the focused window. Change with `--output`:
 
 ```bash
-cd ~/aeo-ptt
-./scripts/aeo-ptt-server.sh        # Terminal 1: Start server
-./scripts/aeo-ptt-client.sh --ptt  # Terminal 2: PTT mode
+aeo-ptt-client --ptt                    # Type at cursor (default when auto-started)
+aeo-ptt-client --ptt --output stdout    # Print to terminal
+aeo-ptt-client --ptt --output clipboard # Copy to clipboard
 ```
 
-Output shows timing and transcription:
-```
-[2.1s → 45ms] hello this is a test
-[0.3s → 38ms] (silence)
-```
+### PTT Modes
 
-## PTT Modes
-
-The client auto-detects the best mode based on your environment:
+The client auto-detects the best input method:
 
 | Mode | Hotkey | When Used |
 |------|--------|-----------|
 | **Global** | Ctrl+Super | Desktop with input group access |
 | **Terminal** | Spacebar | Docker, SSH, or no input access |
 
-### Customizing Hotkeys
+### Manual Start
 
-**Global mode** (evdev): Set `STT_PTT_HOTKEY` to a JSON array of [evdev key names](https://github.com/torvalds/linux/blob/master/include/uapi/linux/input-event-codes.h) (without `KEY_` prefix):
-
-```bash
-# Default: Ctrl+Super (Windows key)
-export STT_PTT_HOTKEY='["LEFTCTRL", "LEFTMETA"]'
-
-# Ctrl+Alt
-export STT_PTT_HOTKEY='["LEFTCTRL", "LEFTALT"]'
-
-# Right Ctrl + Right Alt
-export STT_PTT_HOTKEY='["RIGHTCTRL", "RIGHTALT"]'
-
-# Single key (F13)
-export STT_PTT_HOTKEY='["F13"]'
-```
-
-**Terminal mode**: Set `STT_PTT_TERMINAL_HOTKEY` to a character:
+If you skipped auto-start during install:
 
 ```bash
-# Default: spacebar
-export STT_PTT_TERMINAL_HOTKEY=' '
-
-# Ctrl+R (ASCII 18)
-export STT_PTT_TERMINAL_HOTKEY=$'\x12'
+cd ~/aeo-ptt
+./scripts/aeo-ptt-server.sh        # Terminal 1
+./scripts/aeo-ptt-client.sh --ptt  # Terminal 2
 ```
+
+Output shows recording duration and inference time:
+```
+[2.1s → 45ms] hello this is a test
+[0.3s → 38ms] (silence)
+```
+
+## Uninstall
+
+```bash
+cd ~/aeo-ptt && ./install.sh --uninstall
+```
+
+---
 
 ## Configuration
 
-All settings via environment variables:
+All settings via environment variables. Most users won't need to change these.
 
 ### Server
 
@@ -88,47 +130,21 @@ All settings via environment variables:
 | `STT_CLIENT_OUTPUT_MODE` | `stdout` | `stdout`, `type`, `clipboard` |
 | `STT_CLIENT_SERVER_URL` | `ws://127.0.0.1:9876` | Server URL |
 
-### PTT
+### Hotkeys
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `STT_PTT_HOTKEY` | `["LEFTCTRL", "LEFTMETA"]` | Global mode keys |
+| `STT_PTT_HOTKEY` | `["LEFTCTRL", "LEFTMETA"]` | Global mode keys (JSON array) |
 | `STT_PTT_TERMINAL_HOTKEY` | ` ` (space) | Terminal mode key |
 | `STT_PTT_CLICK_SOUND` | `true` | Audio feedback |
 | `STT_PTT_MAX_DURATION_SECONDS` | `30` | Auto-submit threshold |
 
-## Output Modes
+**Customizing global hotkey** — Use [evdev key names](https://github.com/torvalds/linux/blob/master/include/uapi/linux/input-event-codes.h) without `KEY_` prefix:
 
 ```bash
-./scripts/aeo-ptt-client.sh --ptt                  # Print to stdout
-./scripts/aeo-ptt-client.sh --ptt --output type    # Type into focused window (xdotool)
-./scripts/aeo-ptt-client.sh --ptt --output clipboard  # Copy to clipboard
-```
-
-## System Tray (Auto-Start Mode)
-
-When auto-start is enabled, a system tray icon shows PTT status:
-
-| Color | State |
-|-------|-------|
-| Gray | Connecting to server |
-| Green | Ready (listening for Ctrl+Super) |
-| Red | Recording ("on air") |
-
-Right-click the tray icon to quit.
-
-**Requirements:** GNOME users may need the [AppIndicator extension](https://extensions.gnome.org/extension/615/appindicator-support/).
-
-## Running as a Service
-
-```bash
-cd ~/aeo-ptt && ./scripts/install-systemd.sh
-```
-
-## Uninstall
-
-```bash
-cd ~/aeo-ptt && ./install.sh --uninstall
+export STT_PTT_HOTKEY='["LEFTCTRL", "LEFTALT"]'      # Ctrl+Alt
+export STT_PTT_HOTKEY='["RIGHTCTRL", "RIGHTALT"]'   # Right Ctrl+Alt
+export STT_PTT_HOTKEY='["F13"]'                      # Single key
 ```
 
 ---
@@ -141,6 +157,8 @@ cd ~/aeo-ptt && ./install.sh --uninstall
 | `No accessible keyboards` | Run `sudo usermod -a -G input $USER`, log out/in |
 | Server won't start | Check if port 9876 is in use: `lsof -i :9876` |
 
+---
+
 ## Architecture
 
 ```
@@ -152,20 +170,8 @@ cd ~/aeo-ptt && ./install.sh --uninstall
                         JSON transcripts
 ```
 
-## Features
-
-- **Real-time transcription** (40-200ms latency after warmup)
-- **System-wide auto-start**: Server on boot, client at login with tray icon
-- **Push-to-Talk**: Global hotkey (Ctrl+Super) or terminal (spacebar)
-- **Output modes**: stdout, type-to-window, clipboard
-- **Audio feedback**: Click sounds with container support
-- **30-second auto-submit** for long recordings
-- **GPU-only** (CUDA/TensorRT) - fails fast if unavailable
-
----
-
 <details>
-<summary><strong>Advanced: Developer Setup</strong></summary>
+<summary><strong>Developer Setup</strong></summary>
 
 ### Git Clone
 
@@ -178,7 +184,7 @@ cd aeo-ptt-tts/packages/aeo-ptt
 ### Docker Sandbox
 
 ```bash
-./scripts/test-sandbox.sh        # Start container
+./scripts/test-sandbox.sh          # Start container
 # Inside: run curl installer, test PTT
 ./scripts/test-sandbox.sh --clean  # Rebuild image
 ```
@@ -210,6 +216,12 @@ text = transcriber.transcribe(audio_array, sample_rate=16000)
 ```
 
 </details>
+
+## Requirements
+
+- NVIDIA GPU with CUDA support
+- Ubuntu/Debian-based Linux (22.04/24.04 LTS)
+- Python 3.12.3+
 
 ## License
 
