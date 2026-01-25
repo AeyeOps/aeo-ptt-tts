@@ -1,0 +1,27 @@
+# General
+.DS_Store
+*.log
+*.tmp
+*.swp
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Python build
+build/
+dist/
+*.egg-info/
+
+# uv
+.python-version
+
+# ONNX models (large files)
+packages/*/models/*
+!packages/*/models/.gitkeep
+
+# IDE
+.idea/
+.vscode/
+.history/

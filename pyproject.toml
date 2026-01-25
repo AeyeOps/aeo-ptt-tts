@@ -1,0 +1,10 @@
+[project]
+name = "aeo-ptt-tts"
+version = "0.1.0"
+description = "AEO Push-to-Talk & Text-to-Speech - GPU-accelerated voice I/O for Linux"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12.3"
+
+[tool.uv.workspace]
+members = ["packages/*"]
