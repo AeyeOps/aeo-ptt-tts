@@ -2,6 +2,14 @@
 
 **Dictate anywhere on your Linux desktop.** Hold Ctrl+Super, speak, release — your words appear at the cursor. GPU-accelerated, 40-200ms latency, works in any application.
 
+```mermaid
+%%{init: {"flowchart": {"defaultRenderer": "elk"}, "theme": "neutral"}}%%
+flowchart LR
+    A[Hold Hotkey] --> B[Speak]
+    B --> C[Release]
+    C --> D[Text Appears]
+```
+
 ## Install
 
 One command, guided setup:
@@ -60,10 +68,21 @@ After logging back in, press **Ctrl+Super** in any app to dictate. Look for the 
 
 The tray icon shows PTT status:
 
+```mermaid
+%%{init: {"stateDiagram": {"defaultRenderer": "elk"}, "theme": "neutral"}}%%
+stateDiagram-v2
+    direction LR
+    [*] --> Gray: Starting
+    Gray --> Green: Connected
+    Green --> Red: Hotkey Pressed
+    Red --> Green: Hotkey Released
+    Green --> Gray: Disconnected
+```
+
 | Color | State |
 |-------|-------|
 | Gray | Connecting to server |
-| Green | Ready (listening for Ctrl+Super) |
+| Green | Ready |
 | Red | Recording |
 
 Right-click to quit. GNOME users may need the [AppIndicator extension](https://extensions.gnome.org/extension/615/appindicator-support/).
@@ -161,13 +180,29 @@ export STT_PTT_HOTKEY='["F13"]'                      # Single key
 
 ## Architecture
 
-```
-┌─────────────────┐     WebSocket      ┌─────────────────────────┐
-│  PTT Client     │ ◄────────────────► │  STT Server             │
-│  (sounddevice)  │     PCM chunks     │  (onnx-asr + Parakeet)  │
-└─────────────────┘     ──────────►    │  GPU inference          │
-                        ◄──────────    └─────────────────────────┘
-                        JSON transcripts
+```mermaid
+%%{init: {"flowchart": {"defaultRenderer": "elk"}, "theme": "neutral"}}%%
+flowchart TB
+    subgraph Client
+        A[Microphone] --> B[PTT Client]
+        B --> C[Audio Capture]
+    end
+
+    subgraph Server
+        D[WebSocket Handler] --> E[Transcriber]
+        E --> F[Parakeet ONNX Model]
+        F --> G[NVIDIA GPU]
+    end
+
+    C -->|PCM Audio Chunks| D
+    E -->|Transcribed Text| B
+    B --> H[Output]
+
+    subgraph Output Modes
+        H --> I[Type at Cursor]
+        H --> J[Clipboard]
+        H --> K[Stdout]
+    end
 ```
 
 <details>
@@ -201,14 +236,31 @@ text = transcriber.transcribe(audio_array, sample_rate=16000)
 
 ### WebSocket Protocol
 
-**Client → Server:**
-```json
-{"type": "config", "sample_rate": 16000}  // First
-// Binary frames: 16-bit PCM mono
-{"type": "end"}  // Triggers transcription
+```mermaid
+%%{init: {"sequenceDiagram": {"defaultRenderer": "elk"}, "theme": "neutral"}}%%
+sequenceDiagram
+    participant C as Client
+    participant S as Server
+
+    C->>S: Connect WebSocket
+    S->>C: ready with session id
+    C->>S: config with sample rate
+
+    loop Recording
+        C->>S: Binary PCM chunks
+    end
+
+    C->>S: end message
+    S->>C: final with text and confidence
 ```
 
-**Server → Client:**
+**Client to Server:**
+```json
+{"type": "config", "sample_rate": 16000}
+{"type": "end"}
+```
+
+**Server to Client:**
 ```json
 {"type": "ready", "session_id": "abc123"}
 {"type": "final", "text": "hello", "confidence": 1.0}
