@@ -6,16 +6,16 @@ GPU-accelerated voice I/O for Linux workstations.
 
 | Package | Status | Description |
 |---------|--------|-------------|
-| **stt-service** | Active | Speech-to-text with system-wide hotkey (Ctrl+Super) |
+| **aeo-ptt** | Active | Speech-to-text with system-wide hotkey (Ctrl+Super) |
 | **tts-service** | Planned | Low-latency text-to-speech |
 
-## Quick Start (STT)
+## Quick Start (PTT)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AeyeOps/aeo-ptt-tts/main/packages/stt-service/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/AeyeOps/aeo-ptt-tts/main/packages/aeo-ptt/install.sh | bash
 ```
 
-See [packages/stt-service/README.md](packages/stt-service/README.md) for full documentation.
+See [packages/aeo-ptt/README.md](packages/aeo-ptt/README.md) for full documentation.
 
 ## Architecture
 
@@ -23,11 +23,11 @@ See [packages/stt-service/README.md](packages/stt-service/README.md) for full do
 ┌─────────────────────────────────────────────────────────────┐
 │                    AEO Voice I/O                            │
 ├─────────────────────────────────────────────────────────────┤
-│  STT Service          │  TTS Service (planned)              │
-│  ─────────────────    │  ──────────────────────             │
-│  Audio → Text         │  Text → Audio                       │
-│  Ctrl+Super hotkey    │  Low-latency streaming              │
-│  NVIDIA Parakeet      │  (model TBD)                        │
+│  PTT (Speech-to-Text)   │  TTS (Text-to-Speech) - planned   │
+│  ─────────────────────  │  ──────────────────────────────   │
+│  Audio → Text           │  Text → Audio                     │
+│  Ctrl+Super hotkey      │  Low-latency streaming            │
+│  NVIDIA Parakeet        │  (model TBD)                      │
 └─────────────────────────────────────────────────────────────┘
 ```
 

@@ -1,9 +1,9 @@
-"""STT Service - Speech-to-Text with Parakeet ONNX models.
+"""AEO PTT - Push-to-Talk Speech-to-Text with Parakeet ONNX models.
 
 GPU-only service for real-time speech transcription using NVIDIA Parakeet models.
 
 Example usage:
-    from stt_service import Transcriber, PTTClient, settings
+    from aeo_ptt import Transcriber, PTTClient, settings
 
     # Server-side transcription
     transcriber = Transcriber()
@@ -16,7 +16,7 @@ Example usage:
     text = await client.record_and_transcribe()
 """
 
-__version__ = "0.1.0"
+__version__ = "0.5.0"
 
 from .config import Settings, settings
 from .transcriber import GPUNotAvailableError, Transcriber, get_transcriber

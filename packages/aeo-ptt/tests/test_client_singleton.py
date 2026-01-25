@@ -14,7 +14,7 @@ class TestTakeoverFromOldInstances:
 
     def test_no_existing_instances(self):
         """When pgrep finds no matches, function returns without action."""
-        from stt_service.client import _takeover_from_old_instances
+        from aeo_ptt.client import _takeover_from_old_instances
 
         with mock.patch("subprocess.run") as mock_run:
             mock_run.return_value = mock.Mock(returncode=1, stdout=b"")
@@ -25,7 +25,7 @@ class TestTakeoverFromOldInstances:
 
     def test_only_current_process_found(self):
         """When pgrep only finds current process, no kill is attempted."""
-        from stt_service.client import _takeover_from_old_instances
+        from aeo_ptt.client import _takeover_from_old_instances
 
         current_pid = str(os.getpid())
 
@@ -39,7 +39,7 @@ class TestTakeoverFromOldInstances:
 
     def test_excludes_parent_process(self):
         """When pgrep finds current and parent process (uv wrapper), no kill is attempted."""
-        from stt_service.client import _takeover_from_old_instances
+        from aeo_ptt.client import _takeover_from_old_instances
 
         current_pid = os.getpid()
         parent_pid = os.getppid()
@@ -54,7 +54,7 @@ class TestTakeoverFromOldInstances:
 
     def test_kills_single_other_instance(self):
         """When one other instance exists, sends SIGTERM then checks for exit."""
-        from stt_service.client import _takeover_from_old_instances
+        from aeo_ptt.client import _takeover_from_old_instances
 
         current_pid = os.getpid()
         other_pid = 99999  # Fake PID
@@ -80,7 +80,7 @@ class TestTakeoverFromOldInstances:
 
     def test_sigkill_fallback_for_stubborn_process(self):
         """When process survives SIGTERM, sends SIGKILL."""
-        from stt_service.client import _takeover_from_old_instances
+        from aeo_ptt.client import _takeover_from_old_instances
 
         current_pid = os.getpid()
         other_pid = 99999
@@ -106,7 +106,7 @@ class TestTakeoverFromOldInstances:
 
     def test_handles_permission_error(self):
         """When kill fails with PermissionError, logs error and continues."""
-        from stt_service.client import _takeover_from_old_instances
+        from aeo_ptt.client import _takeover_from_old_instances
 
         current_pid = os.getpid()
         other_pid = 99999
@@ -123,7 +123,7 @@ class TestTakeoverFromOldInstances:
 
     def test_handles_multiple_instances(self):
         """When multiple other instances exist, kills all of them."""
-        from stt_service.client import _takeover_from_old_instances
+        from aeo_ptt.client import _takeover_from_old_instances
 
         current_pid = os.getpid()
         other_pids = [99998, 99999]
@@ -153,7 +153,7 @@ class TestSetupShutdownHandler:
 
     def test_registers_sigterm_handler(self):
         """Shutdown handler is registered for SIGTERM."""
-        from stt_service.client import _setup_shutdown_handler
+        from aeo_ptt.client import _setup_shutdown_handler
 
         with mock.patch("signal.signal") as mock_signal:
             _setup_shutdown_handler(None)
@@ -165,7 +165,7 @@ class TestSetupShutdownHandler:
 
     def test_handler_stops_tray_when_present(self):
         """When tray is provided, handler calls tray.stop()."""
-        from stt_service.client import _setup_shutdown_handler
+        from aeo_ptt.client import _setup_shutdown_handler
 
         mock_tray = mock.Mock()
         handler_func = None
@@ -186,7 +186,7 @@ class TestSetupShutdownHandler:
 
     def test_handler_works_without_tray(self):
         """When tray is None, handler still exits cleanly."""
-        from stt_service.client import _setup_shutdown_handler
+        from aeo_ptt.client import _setup_shutdown_handler
 
         handler_func = None
 

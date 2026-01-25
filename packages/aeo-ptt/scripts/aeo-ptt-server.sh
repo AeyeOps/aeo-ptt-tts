@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Wrapper script to run stt-server with correct CUDA library path
+# Wrapper script to run aeo-ptt-server with correct CUDA library path
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -45,5 +45,4 @@ if [[ -n "$CUDA_LIB" ]]; then
 fi
 
 cd "$PROJECT_DIR"
-exec uv run stt-server "$@"
-
+exec uv run aeo-ptt-server "$@"

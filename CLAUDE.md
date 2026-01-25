@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **AEO PTT-TTS** provides GPU-accelerated voice I/O for Linux workstations:
 
-- **stt-service** (`packages/stt-service/`) - Speech-to-text with system-wide hotkey
+- **aeo-ptt** (`packages/aeo-ptt/`) - Speech-to-text with system-wide hotkey
 - **tts-service** (`packages/tts-service/`) - Text-to-speech (planned)
 
 ## Build & Development Commands
@@ -15,21 +15,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install all workspace dependencies
 uv sync
 
-# Install STT service with all extras
-uv sync --package stt-service --all-extras
+# Install PTT package with all extras
+uv sync --package aeo-ptt --all-extras
 
 # Run tests
-cd packages/stt-service && pytest tests/
+cd packages/aeo-ptt && pytest tests/
 
-# Run STT server (requires GPU)
-packages/stt-service/scripts/stt-server.sh
+# Run PTT server (requires GPU)
+packages/aeo-ptt/scripts/aeo-ptt-server.sh
 
-# Run STT client in PTT mode
-packages/stt-service/scripts/stt-client.sh --ptt
+# Run PTT client in PTT mode
+packages/aeo-ptt/scripts/aeo-ptt-client.sh --ptt
 
 # After uv sync, CLI commands available in venv
-stt-server   # Start STT server
-stt-client   # Start PTT client
+aeo-ptt-server   # Start PTT server
+aeo-ptt-client   # Start PTT client
 ```
 
 ## Architecture
@@ -39,7 +39,7 @@ stt-client   # Start PTT client
 - Root `pyproject.toml` defines workspace, packages in `packages/*`
 - Build backend: hatchling
 
-### STT Service Components (`packages/stt-service/src/stt_service/`)
+### PTT Service Components (`packages/aeo-ptt/src/aeo_ptt/`)
 
 | Module | Purpose |
 |--------|---------|
@@ -90,7 +90,7 @@ STT_PTT_HOTKEY='["LEFTCTRL", "LEFTMETA"]'
 - asyncio for concurrency
 
 ### Commits
-- Imperative mood: `fix(stt-service): correct model path`
+- Imperative mood: `fix(aeo-ptt): correct model path`
 - No Co-Authored-By lines for AI
 
 ## Platform Notes
