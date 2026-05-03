@@ -1,6 +1,6 @@
 [project]
 name = "aeo-ptt"
-version = "0.5.0"
+version = "0.5.1"
 description = "AEO Push-to-Talk - GPU-accelerated speech-to-text for Linux"
 readme = "README.md"
 license = "MIT"

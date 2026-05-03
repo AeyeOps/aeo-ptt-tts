@@ -16,7 +16,7 @@ Example usage:
     text = await client.record_and_transcribe()
 """
 
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 
 from .config import Settings, settings
 from .transcriber import GPUNotAvailableError, Transcriber, get_transcriber
