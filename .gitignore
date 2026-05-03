@@ -25,3 +25,7 @@ packages/*/models/*
 .idea/
 .vscode/
 .history/
+
+# Local agent instructions/state
+CLAUDE.md
+.claude/
