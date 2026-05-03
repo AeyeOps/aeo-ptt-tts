@@ -18,6 +18,13 @@ One command, guided setup:
 curl -fsSL https://raw.githubusercontent.com/AeyeOps/aeo-ptt-tts/main/packages/aeo-ptt/install.sh | bash
 ```
 
+From a local checkout, run the same installer file; it installs or updates from
+that checkout instead of downloading a release tarball:
+
+```bash
+packages/aeo-ptt/install.sh -y
+```
+
 The installer walks you through everything — dependencies, GPU setup, model download, and auto-start configuration. Just answer the prompts:
 
 ```
@@ -96,6 +103,11 @@ aeo-ptt-client --ptt                    # Type at cursor (default when auto-star
 aeo-ptt-client --ptt --output stdout    # Print to terminal
 aeo-ptt-client --ptt --output clipboard # Copy to clipboard
 ```
+
+When the global hotkey is available, hold **Ctrl+Super+Shift** instead of
+**Ctrl+Super** to paste the next transcript with one clipboard paste operation.
+Use this for apps where simulated Space keypresses trigger voice/PTT features
+instead of inserting spaces.
 
 ### PTT Modes
 

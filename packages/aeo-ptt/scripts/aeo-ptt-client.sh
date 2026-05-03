@@ -42,5 +42,18 @@ if [[ -n "$CUDA_LIB" ]]; then
     export LD_LIBRARY_PATH="$CUDA_LIB:${LD_LIBRARY_PATH:-}"
 fi
 
+# AppIndicator/StatusNotifier tray registration needs the desktop session bus.
+# Launches from tmux/SSH/agent shells can have DISPLAY without these variables.
+runtime_dir="/run/user/$(id -u)"
+if [[ -z "${XDG_RUNTIME_DIR:-}" ]] && [[ -d "$runtime_dir" ]]; then
+    export XDG_RUNTIME_DIR="$runtime_dir"
+fi
+
+if [[ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]] \
+    && [[ -n "${XDG_RUNTIME_DIR:-}" ]] \
+    && [[ -S "$XDG_RUNTIME_DIR/bus" ]]; then
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+fi
+
 cd "$PROJECT_DIR"
 exec uv run aeo-ptt-client "$@"

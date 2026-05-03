@@ -24,6 +24,8 @@ INSTALL_DIR="${STT_INSTALL_DIR:-$HOME/aeo-ptt}"
 NONINTERACTIVE="${STT_NONINTERACTIVE:-0}"
 SKIP_MODEL="${STT_SKIP_MODEL:-0}"
 WITH_SERVICE="${STT_WITH_SERVICE:-0}"
+SERVICE_NAME="aeo-ptt"
+LEGACY_SERVICE_NAME="stt-service"
 
 # GitHub download URL (tarball, no git required)
 REPO_TARBALL="https://github.com/AeyeOps/aeo-ptt-tts/archive/refs/heads/main.tar.gz"
@@ -181,6 +183,74 @@ download_extract() {
     fi
 }
 
+# Detect whether this installer is being run from a local git checkout.
+# This is false for curl/wget piped installs, where ${BASH_SOURCE[0]} is not a
+# real install.sh file on disk, and false for installed copies that should keep
+# using the normal update path.
+local_package_source() {
+    local script_path="${BASH_SOURCE[0]:-}"
+    if [[ -z "$script_path" ]] || [[ ! -f "$script_path" ]]; then
+        return 1
+    fi
+
+    local script_dir
+    script_dir="$(cd "$(dirname "$script_path")" && pwd -P)"
+
+    if ! has_cmd git || ! git -C "$script_dir" rev-parse --is-inside-work-tree &>/dev/null; then
+        return 1
+    fi
+
+    if [[ -f "$script_dir/pyproject.toml" ]] && \
+       [[ -d "$script_dir/src/aeo_ptt" ]] && \
+       [[ -f "$script_dir/scripts/aeo-ptt-client.sh" ]]; then
+        printf '%s\n' "$script_dir"
+        return 0
+    fi
+
+    return 1
+}
+
+same_directory() {
+    local left="$1"
+    local right="$2"
+
+    [[ -d "$left" ]] && [[ -d "$right" ]] || return 1
+    [[ "$(cd "$left" && pwd -P)" == "$(cd "$right" && pwd -P)" ]]
+}
+
+copy_local_package() {
+    local source_dir="$1"
+
+    if same_directory "$source_dir" "$INSTALL_DIR"; then
+        success "Using local checkout in place: $INSTALL_DIR"
+        return
+    fi
+
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    mkdir -p "$tmp_dir/package"
+
+    (
+        cd "$source_dir"
+        tar \
+            --exclude='./.venv' \
+            --exclude='./.pytest_cache' \
+            --exclude='./src/aeo_ptt/__pycache__' \
+            --exclude='./tests/__pycache__' \
+            -cf - .
+    ) | (
+        cd "$tmp_dir/package"
+        tar -xf -
+    )
+
+    rm -rf "$INSTALL_DIR"
+    mkdir -p "$(dirname "$INSTALL_DIR")"
+    mv "$tmp_dir/package" "$INSTALL_DIR"
+    rm -rf "$tmp_dir"
+
+    success "Copied local checkout to $INSTALL_DIR"
+}
+
 # Ensure apt-get update has been run
 ensure_apt_updated() {
     if [[ "$APT_UPDATED" != "1" ]]; then
@@ -191,7 +261,7 @@ ensure_apt_updated() {
 
 # Install autostart entry for AEO Push-to-Talk daemon
 # Note: Python deps (pystray, pillow, evdev) already installed by setup_python()
-install_autostart() {
+write_desktop_entries() {
     cd "$INSTALL_DIR"
 
     # Create desktop entry from template (both autostart and applications)
@@ -212,12 +282,23 @@ install_autostart() {
         return 1
     fi
     success "Desktop entries created"
+}
 
-    # Ensure xdotool is installed (for typing text at cursor)
+install_autostart() {
+    write_desktop_entries || return 1
+
+    # Ensure xdotool is installed (for typing text at cursor and paste chord)
     if ! has_cmd xdotool; then
         info "Installing xdotool..."
         ensure_apt_updated
         sudo apt-get install -y xdotool
+    fi
+
+    # Ensure xclip is installed (for clipboard and Shift-modified paste gesture)
+    if ! has_cmd xclip; then
+        info "Installing xclip..."
+        ensure_apt_updated
+        sudo apt-get install -y xclip
     fi
 
     # Install PyGObject for tray support on GNOME
@@ -244,9 +325,22 @@ model_cached() {
     ls -d "$hf_cache"/models--istupakov--parakeet* &>/dev/null
 }
 
-# Check if systemd service exists
+# Print the installed service name, preferring the current unit if both exist.
+installed_service_name() {
+    if [[ -f /etc/systemd/system/$SERVICE_NAME.service ]]; then
+        echo "$SERVICE_NAME"
+        return 0
+    fi
+    if [[ -f /etc/systemd/system/$LEGACY_SERVICE_NAME.service ]]; then
+        echo "$LEGACY_SERVICE_NAME"
+        return 0
+    fi
+    return 1
+}
+
+# Check if a current or legacy systemd service exists.
 service_exists() {
-    [[ -f /etc/systemd/system/aeo-ptt.service ]]
+    installed_service_name >/dev/null
 }
 
 # ═══════════════════════════════════════════════════════════════════
@@ -362,9 +456,6 @@ detect_existing() {
     step "Checking for existing installation..."
 
     local found_install=0
-    local found_model=0
-    local found_service=0
-
     # Check install directory
     if [[ -d "$INSTALL_DIR" ]]; then
         if [[ -f "$INSTALL_DIR/pyproject.toml" ]]; then
@@ -380,14 +471,12 @@ detect_existing() {
     # Check for cached model
     if model_cached; then
         success "Speech model already downloaded"
-        found_model=1
         SKIP_MODEL=1
     fi
 
     # Check for systemd service
     if service_exists; then
         success "Systemd service already installed"
-        found_service=1
     fi
 
     # If existing install found, ask what to do
@@ -421,7 +510,7 @@ detect_existing() {
 # Check if NVIDIA CUDA repo is configured
 cuda_repo_configured() {
     [[ -f /etc/apt/sources.list.d/cuda-ubuntu2404-sbsa.list ]] || \
-    [[ -f /etc/apt/sources.list.d/cuda*.list ]] || \
+    compgen -G "/etc/apt/sources.list.d/cuda*.list" >/dev/null || \
     grep -rq "developer.download.nvidia.com/compute/cuda" /etc/apt/sources.list.d/ 2>/dev/null
 }
 
@@ -626,7 +715,7 @@ install_uv() {
             touch "$shell_rc"
         fi
         if ! grep -q '\.local/bin' "$shell_rc" 2>/dev/null; then
-            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$shell_rc"
+            echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$shell_rc"
             info "Added ~/.local/bin to PATH in $(basename "$shell_rc")"
         fi
     fi
@@ -639,31 +728,39 @@ install_uv() {
 download_package() {
     step "Downloading AEO Push-to-Talk..."
 
-    # Always download from GitHub (curl installer path)
-    # Local development should use git clone directly
+    local source_dir=""
+    if source_dir="$(local_package_source)"; then
+        info "Using local checkout: $source_dir"
+    else
+        info "Using GitHub tarball: $REPO_TARBALL"
+    fi
 
     case "$INSTALL_MODE" in
         fresh|reinstall)
             # Clean install
-            if [[ "$INSTALL_MODE" == "reinstall" ]] && [[ -d "$INSTALL_DIR" ]]; then
-                info "Removing old installation..."
-                rm -rf "$INSTALL_DIR"
+            if [[ -n "$source_dir" ]]; then
+                copy_local_package "$source_dir"
+            else
+                if [[ "$INSTALL_MODE" == "reinstall" ]] && [[ -d "$INSTALL_DIR" ]]; then
+                    info "Removing old installation..."
+                    rm -rf "$INSTALL_DIR"
+                fi
+
+                mkdir -p "$(dirname "$INSTALL_DIR")"
+
+                # Download from GitHub
+                info "Downloading from GitHub..."
+                local tmp_dir
+                tmp_dir=$(mktemp -d)
+
+                download_extract "$REPO_TARBALL" "$tmp_dir"
+
+                # Move just the aeo-ptt package
+                mv "$tmp_dir/$PACKAGE_SUBDIR" "$INSTALL_DIR"
+                rm -rf "$tmp_dir"
             fi
 
-            mkdir -p "$(dirname "$INSTALL_DIR")"
-
-            # Download from GitHub
-            info "Downloading from GitHub..."
-            local tmp_dir
-            tmp_dir=$(mktemp -d)
-
-            download_extract "$REPO_TARBALL" "$tmp_dir"
-
-            # Move just the aeo-ptt package
-            mv "$tmp_dir/$PACKAGE_SUBDIR" "$INSTALL_DIR"
-            rm -rf "$tmp_dir"
-
-            success "Downloaded to $INSTALL_DIR"
+            success "Package ready at $INSTALL_DIR"
             ;;
 
         update)
@@ -675,7 +772,9 @@ download_package() {
                 mv "$INSTALL_DIR/.venv" "$venv_backup/.venv"
             fi
 
-            if has_cmd git && [[ -d "$INSTALL_DIR/.git" ]]; then
+            if [[ -n "$source_dir" ]]; then
+                copy_local_package "$source_dir"
+            elif has_cmd git && [[ -d "$INSTALL_DIR/.git" ]]; then
                 info "Updating via git..."
                 cd "$INSTALL_DIR"
                 git pull
@@ -866,6 +965,40 @@ print('Model loaded successfully')
 # Setup systemd service
 # ═══════════════════════════════════════════════════════════════════
 
+write_service_file() {
+    local service_name="$1"
+    local service_file="/tmp/$service_name.service"
+
+    # Find CUDA libs for service environment
+    CUDA_LIB=$(find_cuda_lib)
+
+    cat > "$service_file" << EOF
+[Unit]
+Description=AEO Push-to-Talk - GPU-accelerated speech-to-text
+After=network.target
+
+[Service]
+Type=simple
+User=$(whoami)
+WorkingDirectory=$INSTALL_DIR
+Environment="LD_LIBRARY_PATH=${CUDA_LIB:-/usr/lib/aarch64-linux-gnu}"
+Environment="PATH=$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=$HOME/.local/bin/uv run aeo-ptt-server
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=$service_name
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    sudo cp "$service_file" "/etc/systemd/system/$service_name.service"
+    sudo systemctl daemon-reload
+    rm -f "$service_file"
+}
+
 setup_service() {
     step "System service setup..."
 
@@ -882,15 +1015,21 @@ setup_service() {
         return
     fi
 
-    if service_exists; then
-        info "Service already installed"
-        if [[ $(ask "Update service configuration?" "n") == "y" ]]; then
-            : # Continue to install
+    local service_name
+    local existing_service=0
+    service_name="$(installed_service_name || true)"
+
+    if [[ -n "$service_name" ]]; then
+        existing_service=1
+        info "Service already installed: $service_name"
+        if [[ $(ask "Update and restart service configuration?" "y") == "y" ]]; then
+            : # Continue to update detected service
         else
             success "Keeping existing service"
             return
         fi
     else
+        service_name="$SERVICE_NAME"
         # Default to no for service (more advanced feature)
         local default="n"
         [[ "$WITH_SERVICE" == "1" ]] && default="y"
@@ -901,55 +1040,43 @@ setup_service() {
         fi
     fi
 
-    info "Installing systemd service..."
+    info "Installing systemd service: $service_name"
+    write_service_file "$service_name"
+    success "Service installed: $service_name"
 
-    # Find CUDA libs for service environment
-    CUDA_LIB=$(find_cuda_lib)
-
-    # Generate service file
-    cat > /tmp/aeo-ptt.service << EOF
-[Unit]
-Description=AEO Push-to-Talk - GPU-accelerated speech-to-text
-After=network.target
-
-[Service]
-Type=simple
-User=$(whoami)
-WorkingDirectory=$INSTALL_DIR
-Environment="LD_LIBRARY_PATH=${CUDA_LIB:-/usr/lib/aarch64-linux-gnu}"
-Environment="PATH=$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=$HOME/.local/bin/uv run aeo-ptt-server
-Restart=on-failure
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=aeo-ptt
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    sudo cp /tmp/aeo-ptt.service /etc/systemd/system/
-    sudo systemctl daemon-reload
-    rm -f /tmp/aeo-ptt.service
-
-    success "Service installed"
+    if [[ "$existing_service" == "1" ]]; then
+        info "Restarting service: $service_name"
+        if sudo systemctl restart "$service_name"; then
+            sleep 2
+            if systemctl is-active --quiet "$service_name"; then
+                success "Service running: $service_name"
+            else
+                warn "Service may have failed to start"
+                info "Check: sudo systemctl status $service_name"
+            fi
+        else
+            warn "Failed to restart service: $service_name"
+            info "Check: sudo systemctl status $service_name"
+        fi
+        return
+    fi
 
     if [[ $(ask "Enable and start service now?" "n") == "y" ]]; then
         # Stop any existing server processes before starting service
-        sudo systemctl stop aeo-ptt 2>/dev/null || true
+        sudo systemctl stop "$service_name" 2>/dev/null || true
         pkill -f "aeo-ptt-server" 2>/dev/null || true
+        pkill -f "stt-server" 2>/dev/null || true
         sleep 1
-        sudo systemctl enable --now aeo-ptt
+        sudo systemctl enable --now "$service_name"
         sleep 2
-        if systemctl is-active --quiet aeo-ptt; then
-            success "Service running"
+        if systemctl is-active --quiet "$service_name"; then
+            success "Service running: $service_name"
         else
             warn "Service may have failed to start"
-            info "Check: sudo systemctl status aeo-ptt"
+            info "Check: sudo systemctl status $service_name"
         fi
     else
-        info "Start later with: sudo systemctl enable --now aeo-ptt"
+        info "Start later with: sudo systemctl enable --now $service_name"
     fi
 }
 
@@ -1030,9 +1157,13 @@ show_completion() {
     # Offer: Auto-start PTT client at login (requires global hotkey + systemd)
     # ─────────────────────────────────────────────────────────────────
     local has_autostart=0
+    local existing_autostart="$HOME/.config/autostart/aeo-ptt.desktop"
     # Check actual file existence (not cached state)
     if [[ -f "$HOME/.config/autostart/aeo-ptt.desktop" ]]; then
-        has_autostart=1
+        info "Refreshing existing autostart entry: $existing_autostart"
+        if write_desktop_entries; then
+            has_autostart=1
+        fi
     elif [[ "$in_container" == "0" ]] && [[ "$has_global_hotkey" == "1" ]] && service_exists; then
         echo -e "${BOLD}Auto-Start Client${NC}"
         echo -e "${DIM}Start AEO Push-to-Talk automatically at login (Ctrl+Super in any app)${NC}"
@@ -1053,14 +1184,17 @@ show_completion() {
 
     # Show configuration summary (non-container only)
     if [[ "$in_container" == "0" ]]; then
+        local service_name
+        service_name="$(installed_service_name || true)"
+
         echo -e "${BOLD}Configuration:${NC}"
         if [[ "$has_global_hotkey" == "1" ]]; then
             echo -e "  ${GREEN}✓${NC} Global hotkey: ${GREEN}Ctrl+Super${NC}"
         else
             echo -e "  ${DIM}○${NC} Global hotkey: ${DIM}not configured (using spacebar)${NC}"
         fi
-        if service_exists; then
-            echo -e "  ${GREEN}✓${NC} Server auto-start: ${GREEN}enabled${NC} (systemd)"
+        if [[ -n "$service_name" ]]; then
+            echo -e "  ${GREEN}✓${NC} Server auto-start: ${GREEN}enabled${NC} (systemd: $service_name)"
         else
             echo -e "  ${DIM}○${NC} Server auto-start: ${DIM}manual${NC}"
         fi
@@ -1094,6 +1228,7 @@ show_completion() {
             # Already in input group - start client now via desktop entry
             # Kill any existing client processes first to avoid duplicates
             pkill -f "aeo-ptt-client.*--daemon" 2>/dev/null || true
+            pkill -f "stt-client.*--daemon" 2>/dev/null || true
             sleep 1
             echo -e "Starting AEO Push-to-Talk..."
             if gtk-launch aeo-ptt 2>/dev/null; then
@@ -1197,12 +1332,14 @@ uninstall() {
     local removed=0
 
     # Remove systemd service
-    if service_exists; then
-        info "Found systemd service"
+    local service_name
+    service_name="$(installed_service_name || true)"
+    if [[ -n "$service_name" ]]; then
+        info "Found systemd service: $service_name"
         if [[ $(ask "Remove systemd service?" "y") == "y" ]]; then
-            sudo systemctl stop aeo-ptt 2>/dev/null || true
-            sudo systemctl disable aeo-ptt 2>/dev/null || true
-            sudo rm -f /etc/systemd/system/aeo-ptt.service
+            sudo systemctl stop "$service_name" 2>/dev/null || true
+            sudo systemctl disable "$service_name" 2>/dev/null || true
+            sudo rm -f "/etc/systemd/system/$service_name.service"
             sudo systemctl daemon-reload
             success "Systemd service removed"
             ((removed++))

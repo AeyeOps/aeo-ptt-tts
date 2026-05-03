@@ -282,28 +282,72 @@ def output_text(text: str, mode: str) -> None:
                 print(text)
 
     elif mode == "clipboard":
-        session_type = os.environ.get("XDG_SESSION_TYPE", "x11")
+        if not copy_to_clipboard(text):
+            print(text)
 
-        if session_type == "wayland":
-            try:
-                subprocess.run(
-                    ["wl-copy"],
-                    input=text.encode(),
-                    check=True,
-                )
-            except FileNotFoundError:
-                logger.error("wl-copy not found. Install with: apt install wl-clipboard")
-                print(text)
-        else:
-            try:
-                subprocess.run(
-                    ["xclip", "-selection", "clipboard"],
-                    input=text.encode(),
-                    check=True,
-                )
-            except FileNotFoundError:
-                logger.error("xclip not found. Install with: apt install xclip")
-                print(text)
+
+def copy_to_clipboard(text: str) -> bool:
+    """Copy text to the system clipboard."""
+    session_type = os.environ.get("XDG_SESSION_TYPE", "x11")
+
+    if session_type == "wayland":
+        try:
+            subprocess.run(
+                ["wl-copy"],
+                input=text.encode(),
+                check=True,
+            )
+            return True
+        except FileNotFoundError:
+            logger.error("wl-copy not found. Install with: apt install wl-clipboard")
+            return False
+        except subprocess.CalledProcessError as e:
+            logger.error(f"wl-copy failed: {e}")
+            return False
+
+    try:
+        subprocess.run(
+            ["xclip", "-selection", "clipboard"],
+            input=text.encode(),
+            check=True,
+        )
+        return True
+    except FileNotFoundError:
+        logger.error("xclip not found. Install with: apt install xclip")
+        return False
+    except subprocess.CalledProcessError as e:
+        logger.error(f"xclip failed: {e}")
+        return False
+
+
+def paste_text(text: str) -> None:
+    """Paste transcribed text by copying once and sending one paste chord."""
+    if not copy_to_clipboard(text):
+        return
+
+    session_type = os.environ.get("XDG_SESSION_TYPE", "x11")
+
+    if session_type == "wayland":
+        try:
+            subprocess.run(
+                ["wtype", "-M", "ctrl", "-P", "v", "-p", "v", "-m", "ctrl"],
+                check=True,
+            )
+        except FileNotFoundError:
+            logger.error("wtype not found. Install with: apt install wtype")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"wtype paste failed: {e}")
+        return
+
+    try:
+        subprocess.run(
+            ["xdotool", "key", "--clearmodifiers", "ctrl+v"],
+            check=True,
+        )
+    except FileNotFoundError:
+        logger.error("xdotool not found. Install with: apt install xdotool")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"xdotool paste failed: {e}")
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -672,7 +716,7 @@ async def run_ptt_mode(args: argparse.Namespace) -> int:
         )
         stream.start()
 
-    async def stop_recording():
+    async def stop_recording(paste_requested: bool = False):
         """Stop recording and submit for transcription."""
         nonlocal stream, audio_chunks
 
@@ -729,8 +773,15 @@ async def run_ptt_mode(args: argparse.Namespace) -> int:
                 text = msg.get("text", "")
                 latency_ms = (t_done - t_start) * 1000
 
+                # Shift-modified PTT gesture: paste as one clipboard operation,
+                # regardless of the default output mode for this utterance.
+                if paste_requested:
+                    if not daemon_mode:
+                        print_fn(f"[{duration:.1f}s → {latency_ms:.0f}ms]")
+                    if text:
+                        paste_text(text)
                 # Daemon mode: suppress timing output, only send text
-                if daemon_mode:
+                elif daemon_mode:
                     if text:
                         output_text(text, output_mode)
                 # Normal mode: show timing info
@@ -771,7 +822,7 @@ async def run_ptt_mode(args: argparse.Namespace) -> int:
         nonlocal recording_task
         recording_task = loop.create_task(start_recording())
 
-    def on_stop():
+    def on_stop(paste_requested: bool = False):
         nonlocal recording_task
 
         async def wait_and_stop():
@@ -783,7 +834,7 @@ async def run_ptt_mode(args: argparse.Namespace) -> int:
                     await recording_task
                 except Exception:
                     pass  # Ignore errors, stop_recording handles missing client
-            await stop_recording()
+            await stop_recording(paste_requested=paste_requested)
 
         loop.create_task(wait_and_stop())
 

@@ -69,7 +69,9 @@ class EvdevHotkeyListener:
         # Per-device key tracking (path -> set of pressed key codes)
         self._pressed_keys_by_device: dict[str, set[int]] = {}
         self._hotkey_codes: set[int] = set()
+        self._shift_codes: set[int] = set()
         self._hotkey_active = False
+        self._paste_requested = False
         self._running = False
 
         # Device management for hot-plug support
@@ -94,7 +96,13 @@ class EvdevHotkeyListener:
             else:
                 raise ValueError(f"Unknown key name: {key_name} (tried {code_name})")
 
+        self._shift_codes = {ecodes.KEY_LEFTSHIFT, ecodes.KEY_RIGHTSHIFT}
         logger.info(f"PTT hotkey: {self.hotkey} -> codes {self._hotkey_codes}")
+
+    @property
+    def paste_requested(self) -> bool:
+        """Whether Shift was held at any point during the active PTT gesture."""
+        return self._paste_requested
 
     def _find_keyboards(self, exclude_paths: Optional[set[str]] = None) -> list:
         """Find keyboard input devices.
@@ -205,16 +213,24 @@ class EvdevHotkeyListener:
 
     def _check_hotkey(self) -> None:
         """Check if hotkey state changed."""
-        all_pressed = self._hotkey_codes.issubset(self._get_all_pressed_keys())
+        pressed_keys = self._get_all_pressed_keys()
+        all_pressed = self._hotkey_codes.issubset(pressed_keys)
+        shift_pressed = bool(self._shift_codes.intersection(pressed_keys))
 
         if all_pressed and not self._hotkey_active:
             # Hotkey just activated
             self._hotkey_active = True
+            self._paste_requested = shift_pressed
             logger.debug("Hotkey activated")
             try:
                 self.on_activate()
             except Exception as e:
                 logger.error(f"Hotkey activate callback failed: {e}")
+
+        elif all_pressed and self._hotkey_active and shift_pressed:
+            # Shift can be pressed after recording starts and released before submit.
+            # Remember that paste was requested for this whole utterance.
+            self._paste_requested = True
 
         elif not all_pressed and self._hotkey_active:
             # Hotkey just deactivated (a key was released)
@@ -404,6 +420,11 @@ class TerminalHotkeyListener:
         self.hotkey_char = hotkey_char or settings.ptt.terminal_hotkey
         self._running = False
         self._old_settings = None
+
+    @property
+    def paste_requested(self) -> bool:
+        """Terminal mode has no Shift-modified paste gesture."""
+        return False
 
     async def start(self) -> None:
         """Start listening for hotkey in terminal raw mode."""
@@ -684,7 +705,7 @@ class PTTController:
         self.state = PTTState.IDLE
         self._listener = listener
         self._on_start_recording: Optional[Callable[[], None]] = None
-        self._on_stop_recording: Optional[Callable[[], None]] = None
+        self._on_stop_recording: Optional[Callable[[bool], None]] = None
         self._auto_submitted = False  # Track if we auto-submitted due to limit
         self._recording_start_time: float = 0
         self._processing_start_time: float = 0  # For stuck state watchdog
@@ -802,7 +823,21 @@ class PTTController:
         logger.info(f"PTT: Recording stopped ({duration:.1f}s), processing...")
 
         if self._on_stop_recording:
-            self._on_stop_recording()
+            self._on_stop_recording(self._paste_requested_for_recording())
+
+    def _paste_requested_for_recording(self) -> bool:
+        """Return whether the active listener requested paste for this utterance."""
+        if self._listener is None:
+            return False
+
+        try:
+            paste_requested = getattr(self._listener, "paste_requested", False)
+            if callable(paste_requested):
+                paste_requested = paste_requested()
+            return bool(paste_requested)
+        except Exception as e:
+            logger.error(f"Failed to read paste-request state: {e}")
+            return False
 
     async def _monitor_duration(self) -> None:
         """Monitor recording duration and auto-submit if limit reached."""
@@ -849,13 +884,15 @@ class PTTController:
     def set_callbacks(
         self,
         on_start: Callable[[], None],
-        on_stop: Callable[[], None],
+        on_stop: Callable[[bool], None],
     ) -> None:
         """Set recording callbacks.
 
         Args:
             on_start: Called when recording should start
-            on_stop: Called when recording should stop and submit
+            on_stop: Called when recording should stop and submit.
+                Receives True when Shift modified the PTT gesture and the
+                transcript should be pasted instead of typed.
         """
         self._on_start_recording = on_start
         self._on_stop_recording = on_stop
