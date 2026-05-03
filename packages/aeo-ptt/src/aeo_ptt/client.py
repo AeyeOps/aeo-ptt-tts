@@ -320,6 +320,64 @@ def copy_to_clipboard(text: str) -> bool:
         return False
 
 
+TERMINAL_WM_CLASS_TOKENS = (
+    "terminal",
+    "xterm",
+    "rxvt",
+    "urxvt",
+    "kitty",
+    "alacritty",
+    "wezterm",
+    "konsole",
+    "tilix",
+    "terminator",
+    "foot",
+    "kgx",
+    "ptyxis",
+    "ghostty",
+)
+
+
+def _active_x11_wm_class() -> str:
+    """Return the active X11 window WM_CLASS, or empty string if unavailable."""
+    try:
+        window_id_result = subprocess.run(
+            ["xdotool", "getactivewindow"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        logger.debug(f"Could not read active X11 window: {e}")
+        return ""
+
+    window_id = window_id_result.stdout.strip()
+    if not window_id.isdigit():
+        return ""
+
+    try:
+        wm_class_result = subprocess.run(
+            ["xprop", "-id", window_id, "WM_CLASS"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        logger.debug(f"Could not read active X11 window class: {e}")
+        return ""
+
+    return wm_class_result.stdout.lower()
+
+
+def _x11_paste_chord() -> str:
+    """Choose the X11 paste chord for the active application."""
+    wm_class = _active_x11_wm_class()
+    if any(token in wm_class for token in TERMINAL_WM_CLASS_TOKENS):
+        logger.debug(f"Using terminal paste chord for active window: {wm_class.strip()}")
+        return "ctrl+shift+v"
+    return "ctrl+v"
+
+
 def paste_text(text: str) -> None:
     """Paste transcribed text by copying once and sending one paste chord."""
     if not copy_to_clipboard(text):
@@ -341,7 +399,7 @@ def paste_text(text: str) -> None:
 
     try:
         subprocess.run(
-            ["xdotool", "key", "--clearmodifiers", "ctrl+v"],
+            ["xdotool", "key", "--clearmodifiers", _x11_paste_chord()],
             check=True,
         )
     except FileNotFoundError:
